@@ -1,22 +1,26 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Goal, Entry } from '@/lib/types';
-import { GoalCard } from '@/components/goal-card';
-import { AddGoalDialog } from '@/components/add-goal-dialog';
-import { AddEntryDialog } from '@/components/add-entry-dialog';
+import { Goal, Entry, Todo, Tag } from '@/lib/types';
+import { HomeGoalCard } from '@/components/home-goal-card';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { TodoItem } from '@/components/todo-item';
 import { Plus } from 'lucide-react';
 import { useRouter } from 'next/navigation';
+import { format } from 'date-fns';
 
-export default function Home() {
+export default function HomePage() {
   const [goals, setGoals] = useState<Goal[]>([]);
   const [entries, setEntries] = useState<Entry[]>([]);
-  const [addGoalOpen, setAddGoalOpen] = useState(false);
-  const [addEntryOpen, setAddEntryOpen] = useState(false);
-  const [selectedGoalId, setSelectedGoalId] = useState<string | null>(null);
+  const [todos, setTodos] = useState<Todo[]>([]);
+  const [tags, setTags] = useState<Tag[]>([]);
+  const [newTodoText, setNewTodoText] = useState('');
   const [loading, setLoading] = useState(true);
   const router = useRouter();
+
+  const today = format(new Date(), 'yyyy-MM-dd');
 
   useEffect(() => {
     loadData();
@@ -24,16 +28,22 @@ export default function Home() {
 
   const loadData = async () => {
     try {
-      const [goalsRes, entriesRes] = await Promise.all([
+      const [goalsRes, entriesRes, todosRes, tagsRes] = await Promise.all([
         fetch('/api/goals'),
         fetch('/api/entries'),
+        fetch('/api/todos'),
+        fetch('/api/tags'),
       ]);
       
       const goalsData = await goalsRes.json();
       const entriesData = await entriesRes.json();
+      const todosData = await todosRes.json();
+      const tagsData = await tagsRes.json();
       
       setGoals(goalsData);
       setEntries(entriesData);
+      setTodos(todosData);
+      setTags(tagsData);
     } catch (error) {
       console.error('Error loading data:', error);
     } finally {
@@ -41,23 +51,11 @@ export default function Home() {
     }
   };
 
-  const handleSaveGoal = async (goal: Goal) => {
-    try {
-      await fetch('/api/goals', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(goal),
-      });
-      await loadData();
-    } catch (error) {
-      console.error('Error saving goal:', error);
-    }
-  };
-
   const handleSaveEntry = async (entry: Entry) => {
     try {
-      await fetch('/api/entries', {
-        method: 'POST',
+      const existingEntry = entries.find(e => e.id === entry.id);
+      await fetch(existingEntry ? `/api/entries/${entry.id}` : '/api/entries', {
+        method: existingEntry ? 'PUT' : 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(entry),
       });
@@ -67,16 +65,76 @@ export default function Home() {
     }
   };
 
-  const handleAddEntry = (goalId: string) => {
-    setSelectedGoalId(goalId);
-    setAddEntryOpen(true);
+  const handleAddTodo = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newTodoText.trim()) return;
+
+    const todo: Todo = {
+      id: crypto.randomUUID(),
+      date: today,
+      text: newTodoText.trim(),
+      completed: false,
+      createdAt: new Date().toISOString(),
+    };
+
+    try {
+      await fetch('/api/todos', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(todo),
+      });
+      setNewTodoText('');
+      await loadData();
+    } catch (error) {
+      console.error('Error adding todo:', error);
+    }
   };
 
-  const handleGoalClick = (goalId: string) => {
-    router.push(`/goals/${goalId}`);
+  const handleToggleTodo = async (todo: Todo) => {
+    try {
+      await fetch(`/api/todos/${todo.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...todo, completed: !todo.completed }),
+      });
+      await loadData();
+    } catch (error) {
+      console.error('Error updating todo:', error);
+    }
   };
 
-  const selectedGoal = selectedGoalId ? goals.find(g => g.id === selectedGoalId) : null;
+  const handleUpdateTodo = async (todo: Todo) => {
+    try {
+      await fetch(`/api/todos/${todo.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(todo),
+      });
+      await loadData();
+    } catch (error) {
+      console.error('Error updating todo:', error);
+    }
+  };
+
+  const handleCreateTag = async (tag: Tag): Promise<Tag | null> => {
+    try {
+      const res = await fetch('/api/tags', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(tag),
+      });
+      if (res.ok) {
+        const created = await res.json();
+        setTags(prev => [...prev, created]);
+        return created;
+      }
+    } catch (error) {
+      console.error('Error creating tag:', error);
+    }
+    return null;
+  };
+
+  const todaysTodos = todos.filter(t => t.date === today);
 
   if (loading) {
     return (
@@ -89,53 +147,73 @@ export default function Home() {
   return (
     <div className="min-h-screen bg-background">
       <div className="container mx-auto p-8">
-        <div className="flex items-center justify-between mb-8">
-          <div>
-            <h1 className="text-4xl font-bold tracking-tight">Goal Tracker</h1>
-            <p className="text-muted-foreground mt-2">Track your progress, achieve your goals</p>
-          </div>
-          <Button onClick={() => setAddGoalOpen(true)} size="lg">
-            <Plus className="h-5 w-5 mr-2" />
-            New Goal
-          </Button>
+        <div className="mb-8">
+          <h1 className="text-4xl font-bold tracking-tight">Today</h1>
+          <p className="text-muted-foreground mt-2">{format(new Date(), 'EEEE, MMMM d, yyyy')}</p>
         </div>
 
-        {goals.length === 0 ? (
-          <div className="text-center py-16">
-            <p className="text-muted-foreground text-lg mb-4">
-              No goals yet. Create your first goal to get started!
-            </p>
-            <Button onClick={() => setAddGoalOpen(true)}>
-              <Plus className="h-5 w-5 mr-2" />
-              Create Goal
-            </Button>
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {goals.map(goal => (
-              <GoalCard
-                key={goal.id}
-                goal={goal}
-                entries={entries}
-                onAddEntry={handleAddEntry}
-                onClick={handleGoalClick}
-              />
-            ))}
-          </div>
-        )}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+          <Card>
+            <CardHeader>
+              <CardTitle>Today&apos;s Todos</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <form onSubmit={handleAddTodo} className="flex gap-2 mb-4">
+                <Input
+                  placeholder="Add a todo..."
+                  value={newTodoText}
+                  onChange={(e) => setNewTodoText(e.target.value)}
+                />
+                <Button type="submit" size="icon">
+                  <Plus className="h-4 w-4" />
+                </Button>
+              </form>
+              <div className="space-y-2">
+                {todaysTodos.length === 0 ? (
+                  <p className="text-muted-foreground text-sm">No todos for today</p>
+                ) : (
+                  todaysTodos.map(todo => (
+                    <TodoItem
+                      key={todo.id}
+                      todo={todo}
+                      tags={tags}
+                      onToggle={handleToggleTodo}
+                      onUpdate={handleUpdateTodo}
+                      onCreateTag={handleCreateTag}
+                    />
+                  ))
+                )}
+              </div>
+            </CardContent>
+          </Card>
 
-        <AddGoalDialog
-          open={addGoalOpen}
-          onOpenChange={setAddGoalOpen}
-          onSave={handleSaveGoal}
-        />
-
-        <AddEntryDialog
-          open={addEntryOpen}
-          onOpenChange={setAddEntryOpen}
-          goal={selectedGoal || null}
-          onSave={handleSaveEntry}
-        />
+          <div>
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-xl font-semibold">Your Goals</h2>
+              <Button variant="ghost" size="sm" onClick={() => router.push('/goals')}>
+                View all
+              </Button>
+            </div>
+            {goals.length === 0 ? (
+              <Card>
+                <CardContent className="py-8">
+                  <p className="text-muted-foreground text-sm text-center">No goals yet</p>
+                </CardContent>
+              </Card>
+            ) : (
+              <div className="space-y-3">
+                {goals.map(goal => (
+                  <HomeGoalCard
+                    key={goal.id}
+                    goal={goal}
+                    entries={entries}
+                    onSaveEntry={handleSaveEntry}
+                  />
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
       </div>
     </div>
   );

@@ -61,3 +61,26 @@ export interface GoalsData {
 export interface EntriesData {
   entries: Entry[];
 }
+
+export interface Todo {
+  id: string;
+  date: string;
+  text: string;
+  completed: boolean;
+  createdAt: string;
+  tagIds?: string[];
+}
+
+export interface TodosData {
+  todos: Todo[];
+}
+
+export interface Tag {
+  id: string;
+  name: string;
+  color: string;
+}
+
+export interface TagsData {
+  tags: Tag[];
+}
