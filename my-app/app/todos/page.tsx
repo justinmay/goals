@@ -5,6 +5,20 @@ import { Todo, Tag } from '@/lib/types';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { TodoItem } from '@/components/todo-item';
 import { format, parseISO } from 'date-fns';
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  DragEndEvent,
+} from '@dnd-kit/core';
+import {
+  SortableContext,
+  sortableKeyboardCoordinates,
+  verticalListSortingStrategy,
+} from '@dnd-kit/sortable';
 
 export default function TodosPage() {
   const [todos, setTodos] = useState<Todo[]>([]);
@@ -73,10 +87,54 @@ export default function TodosPage() {
   const datesWithTodos = [...new Set(todos.map(t => t.date))].sort((a, b) => b.localeCompare(a));
 
   const getTodosForDate = (dateStr: string) => {
-    return todos.filter(t => t.date === dateStr);
+    return todos
+      .filter(t => t.date === dateStr)
+      .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
   };
 
   const isToday = (dateStr: string) => dateStr === today;
+
+  const sensors = useSensors(
+    useSensor(PointerSensor),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  );
+
+  const handleDragEnd = async (event: DragEndEvent, dateStr: string) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+
+    const dayTodos = getTodosForDate(dateStr);
+    const oldIndex = dayTodos.findIndex(t => t.id === active.id);
+    const newIndex = dayTodos.findIndex(t => t.id === over.id);
+
+    if (oldIndex === -1 || newIndex === -1) return;
+
+    const reorderedDayTodos = [...dayTodos];
+    const [movedTodo] = reorderedDayTodos.splice(oldIndex, 1);
+    reorderedDayTodos.splice(newIndex, 0, movedTodo);
+
+    // Optimistic update
+    const newTodos = todos.map(t => {
+      if (t.date !== dateStr) return t;
+      const idx = reorderedDayTodos.findIndex(rt => rt.id === t.id);
+      return { ...t, order: idx };
+    });
+    setTodos(newTodos);
+
+    // Persist to server
+    try {
+      await fetch('/api/todos/reorder', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ orderedIds: reorderedDayTodos.map(t => t.id) }),
+      });
+    } catch (error) {
+      console.error('Error reordering todos:', error);
+      await loadData();
+    }
+  };
 
   const handleCreateTag = async (tag: Tag): Promise<Tag | null> => {
     try {
@@ -130,19 +188,31 @@ export default function TodosPage() {
                     </CardTitle>
                   </CardHeader>
                   <CardContent>
-                    <div className="space-y-2">
-                      {dayTodos.map(todo => (
-                        <TodoItem
-                          key={todo.id}
-                          todo={todo}
-                          tags={tags}
-                          onToggle={handleToggleTodo}
-                          onUpdate={handleUpdateTodo}
-                          onDelete={handleDeleteTodo}
-                          onCreateTag={handleCreateTag}
-                        />
-                      ))}
-                    </div>
+                    <DndContext
+                      sensors={sensors}
+                      collisionDetection={closestCenter}
+                      onDragEnd={(event) => handleDragEnd(event, dateStr)}
+                    >
+                      <SortableContext
+                        items={dayTodos.map(t => t.id)}
+                        strategy={verticalListSortingStrategy}
+                      >
+                        <div className="space-y-2">
+                          {dayTodos.map(todo => (
+                            <TodoItem
+                              key={todo.id}
+                              todo={todo}
+                              tags={tags}
+                              onToggle={handleToggleTodo}
+                              onUpdate={handleUpdateTodo}
+                              onDelete={handleDeleteTodo}
+                              onCreateTag={handleCreateTag}
+                              isDraggable
+                            />
+                          ))}
+                        </div>
+                      </SortableContext>
+                    </DndContext>
                   </CardContent>
                 </Card>
               );
