@@ -1,6 +1,7 @@
 # Goals App
 
-A personal goal tracking and productivity app built with Next.js.
+A privacy focused local first personal goal tracking and productivity app. 
+Own all your data.
 
 ## Features
 
