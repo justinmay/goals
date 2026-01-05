@@ -5,7 +5,9 @@ import { Todo, Tag } from '@/lib/types';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { TagInput } from '@/components/tag-input';
-import { Check, Pencil, Trash2, X } from 'lucide-react';
+import { Check, GripVertical, Pencil, Trash2, X } from 'lucide-react';
+import { useSortable } from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 
 interface TodoItemProps {
   todo: Todo;
@@ -14,12 +16,22 @@ interface TodoItemProps {
   onUpdate: (todo: Todo) => void;
   onDelete?: (id: string) => void;
   onCreateTag: (tag: Tag) => Promise<Tag | null>;
+  isDraggable?: boolean;
 }
 
-export function TodoItem({ todo, tags, onToggle, onUpdate, onDelete, onCreateTag }: TodoItemProps) {
+export function TodoItem({ todo, tags, onToggle, onUpdate, onDelete, onCreateTag, isDraggable = false }: TodoItemProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [editText, setEditText] = useState(todo.text);
   const [editTagIds, setEditTagIds] = useState<string[]>(todo.tagIds || []);
+
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: todo.id, disabled: !isDraggable });
 
   const todoTags = tags.filter(t => todo.tagIds?.includes(t.id));
 
@@ -44,9 +56,15 @@ export function TodoItem({ todo, tags, onToggle, onUpdate, onDelete, onCreateTag
     }
   };
 
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+  };
+
   if (isEditing) {
     return (
-      <div className="p-2 rounded-md bg-muted space-y-2">
+      <div ref={setNodeRef} style={style} className="p-2 rounded-md bg-muted space-y-2">
         <div className="flex items-center gap-2">
           <Input
             value={editText}
@@ -73,7 +91,20 @@ export function TodoItem({ todo, tags, onToggle, onUpdate, onDelete, onCreateTag
   }
 
   return (
-    <div className="flex items-center gap-2 p-2 rounded-md hover:bg-muted group">
+    <div
+      ref={setNodeRef}
+      style={style}
+      className="flex items-center gap-2 p-2 rounded-md hover:bg-muted group"
+    >
+      {isDraggable && (
+        <div
+          {...attributes}
+          {...listeners}
+          className="cursor-grab active:cursor-grabbing touch-none opacity-0 group-hover:opacity-100"
+        >
+          <GripVertical className="h-4 w-4 text-muted-foreground" />
+        </div>
+      )}
       <div
         className={`w-5 h-5 rounded border flex items-center justify-center cursor-pointer ${todo.completed ? 'bg-primary border-primary' : 'border-input'}`}
         onClick={() => onToggle(todo)}

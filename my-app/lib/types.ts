@@ -69,6 +69,7 @@ export interface Todo {
   completed: boolean;
   createdAt: string;
   tagIds?: string[];
+  order?: number;
 }
 
 export interface TodosData {
