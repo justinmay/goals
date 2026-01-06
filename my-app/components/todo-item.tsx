@@ -5,7 +5,8 @@ import { Todo, Tag } from '@/lib/types';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { TagInput } from '@/components/tag-input';
-import { Check, GripVertical, Pencil, Trash2, X } from 'lucide-react';
+import { Check, GripVertical, Pencil, Trash2, X, ArrowRight } from 'lucide-react';
+import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 
@@ -17,9 +18,10 @@ interface TodoItemProps {
   onDelete?: (id: string) => void;
   onCreateTag: (tag: Tag) => Promise<Tag | null>;
   isDraggable?: boolean;
+  onAddToToday?: (todo: Todo) => void;
 }
 
-export function TodoItem({ todo, tags, onToggle, onUpdate, onDelete, onCreateTag, isDraggable = false }: TodoItemProps) {
+export function TodoItem({ todo, tags, onToggle, onUpdate, onDelete, onCreateTag, isDraggable = false, onAddToToday }: TodoItemProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [editText, setEditText] = useState(todo.text);
   const [editTagIds, setEditTagIds] = useState<string[]>(todo.tagIds || []);
@@ -129,10 +131,25 @@ export function TodoItem({ todo, tags, onToggle, onUpdate, onDelete, onCreateTag
           </div>
         )}
       </div>
+      {onAddToToday && !todo.completed && (
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8 opacity-0 group-hover:opacity-100 cursor-pointer hover:bg-primary/10 hover:text-primary transition-colors"
+              onClick={() => onAddToToday(todo)}
+            >
+              <ArrowRight className="h-4 w-4" />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>Move to today</TooltipContent>
+        </Tooltip>
+      )}
       <Button
         variant="ghost"
         size="icon"
-        className="h-8 w-8 opacity-0 group-hover:opacity-100"
+        className="h-8 w-8 opacity-0 group-hover:opacity-100 cursor-pointer hover:bg-primary/10 hover:text-primary transition-colors"
         onClick={() => setIsEditing(true)}
       >
         <Pencil className="h-4 w-4" />
@@ -141,7 +158,7 @@ export function TodoItem({ todo, tags, onToggle, onUpdate, onDelete, onCreateTag
         <Button
           variant="ghost"
           size="icon"
-          className="h-8 w-8 opacity-0 group-hover:opacity-100"
+          className="h-8 w-8 opacity-0 group-hover:opacity-100 cursor-pointer hover:bg-destructive/10 hover:text-destructive transition-colors"
           onClick={() => onDelete(todo.id)}
         >
           <Trash2 className="h-4 w-4 text-destructive" />

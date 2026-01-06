@@ -136,6 +136,27 @@ export default function TodosPage() {
     }
   };
 
+  const handleAddToToday = async (todo: Todo) => {
+    try {
+      const todayDate = format(new Date(), 'yyyy-MM-dd');
+      const newTodo = {
+        ...todo,
+        id: crypto.randomUUID(),
+        date: todayDate,
+        completed: false,
+        order: getTodosForDate(todayDate).length,
+      };
+      await fetch('/api/todos', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newTodo),
+      });
+      await loadData();
+    } catch (error) {
+      console.error('Error adding todo to today:', error);
+    }
+  };
+
   const handleCreateTag = async (tag: Tag): Promise<Tag | null> => {
     try {
       const res = await fetch('/api/tags', {
@@ -208,6 +229,7 @@ export default function TodosPage() {
                               onDelete={handleDeleteTodo}
                               onCreateTag={handleCreateTag}
                               isDraggable
+                              onAddToToday={!isToday(dateStr) ? handleAddToToday : undefined}
                             />
                           ))}
                         </div>
