@@ -130,6 +130,17 @@ export default function HomePage() {
     }
   };
 
+  const handleDeleteTodo = async (id: string) => {
+    try {
+      await fetch(`/api/todos/${id}`, {
+        method: "DELETE",
+      });
+      await loadData();
+    } catch (error) {
+      console.error("Error deleting todo:", error);
+    }
+  };
+
   const handleCreateTag = async (tag: Tag): Promise<Tag | null> => {
     try {
       const res = await fetch("/api/tags", {
@@ -249,6 +260,7 @@ export default function HomePage() {
                           tags={tags}
                           onToggle={handleToggleTodo}
                           onUpdate={handleUpdateTodo}
+                          onDelete={handleDeleteTodo}
                           onCreateTag={handleCreateTag}
                           isDraggable
                         />
