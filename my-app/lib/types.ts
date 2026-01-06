@@ -62,6 +62,12 @@ export interface EntriesData {
   entries: Entry[];
 }
 
+export interface SubTask {
+  id: string;
+  text: string;
+  completed: boolean;
+}
+
 export interface Todo {
   id: string;
   date: string;
@@ -70,6 +76,7 @@ export interface Todo {
   createdAt: string;
   tagIds?: string[];
   order?: number;
+  subTasks?: SubTask[];
 }
 
 export interface TodosData {
